@@ -1,0 +1,22 @@
+<configure
+    xmlns="http://namespaces.zope.org/zope"
+    xmlns:browser="http://namespaces.zope.org/browser"
+    xmlns:plone="http://namespaces.plone.org/plone"
+    xmlns:zcml="http://namespaces.zope.org/zcml"
+    i18n_domain="collective.mediaelementjs">
+
+    <plone:behavior
+        title="MediaElementJS File"
+        description="Enable MediaElementJS file support"
+        provides=".behaviors.IMediaElementJSFile"
+        />
+
+    <browser:page
+        name="mediaelementjs"
+        for=".behaviors.IMediaElementJSFile"
+        class=".dexterity.MediaElementJSFileView"
+        template="browser/file4x.pt"
+        permission="zope2.View"
+        />
+
+</configure>

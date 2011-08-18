@@ -1,0 +1,31 @@
+<configure
+    xmlns="http://namespaces.zope.org/zope"
+    xmlns:browser="http://namespaces.zope.org/browser"
+    xmlns:plone="http://namespaces.plone.org/plone"
+    i18n_domain="collective.mediaelementjs">
+
+    <include package="Products.CMFCore"/>
+
+    <browser:resourceDirectory
+        name="collective.mediaelementjs"
+        directory="mediaelementjs"
+        />
+    <browser:resourceDirectory
+        name="collective.mediaelementjs.css"
+        directory="css"
+        />
+    <browser:resourceDirectory
+        name="collective.mediaelementjs.js"
+        directory="js"
+        />
+
+    <browser:page
+        name="mediaelementjs"
+        for="Products.ATContentTypes.interface.IFileContent"
+        class=".view.File"
+        template="file.pt"
+        permission="zope2.View"
+        />
+
+
+</configure>
