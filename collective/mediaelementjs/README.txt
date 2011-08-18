@@ -36,8 +36,10 @@ Add an mp4 file to a folder.
     ...Changes saved...
 
 The file now provides IVideo and the display layout has automatically
-been set to the flowplayer view.
+been set to the mediaelementjs view.
 
     >>> from collective.mediaelementjs import interfaces
     >>> interfaces.IVideo.providedBy(folder['barsandtone.mp4'])
     True
+    >>> folder['barsandtone.mp4'].getLayout()
+    'mediaelementjs'

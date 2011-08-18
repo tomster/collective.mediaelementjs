@@ -12,6 +12,17 @@
 
     <five:registerPackage package="." initialize=".initialize" />    
     
+    <subscriber
+        for="Products.ATContentTypes.interface.IFileContent
+             Products.Archetypes.interfaces.IObjectInitializedEvent"
+        handler=".events.ChangeFileView"
+        />
+    <subscriber
+        for="Products.ATContentTypes.interface.IFileContent
+             Products.Archetypes.interfaces.IObjectEditedEvent"
+        handler=".events.ChangeFileView"
+        />
+
     <genericsetup:registerProfile
         name="default"
         title="MediaElementJS"
