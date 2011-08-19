@@ -10,14 +10,6 @@
         name="collective.mediaelementjs"
         directory="mediaelementjs"
         />
-    <browser:resourceDirectory
-        name="collective.mediaelementjs.css"
-        directory="css"
-        />
-    <browser:resourceDirectory
-        name="collective.mediaelementjs.js"
-        directory="js"
-        />
 
     <browser:page
         name="mediaelementjs"
