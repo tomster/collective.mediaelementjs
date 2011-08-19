@@ -1,5 +1,5 @@
 import logging
-logger = logging.getLogger('collective.flowplayer.metadata_extraction')
+logger = logging.getLogger('collective.mediaelementjs.metadata_extraction')
 
 from hachoir_parser.guess import createParser, guessParser
 from hachoir_metadata.metadata import extractMetadata

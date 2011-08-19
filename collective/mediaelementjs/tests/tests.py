@@ -29,6 +29,7 @@ FUNCTIONALTESTFILES = [
     'README.txt',
 ]
 TESTFILES = [
+    '../metadata_extraction.txt',
 ]
 
 def test_suite():

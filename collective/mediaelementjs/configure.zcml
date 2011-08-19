@@ -12,6 +12,8 @@
 
     <five:registerPackage package="." initialize=".initialize" />    
     
+    <adapter factory=".media.VideoInfoAdapter" />
+
     <subscriber
         for="Products.ATContentTypes.interface.IFileContent
              Products.Archetypes.interfaces.IObjectInitializedEvent"
