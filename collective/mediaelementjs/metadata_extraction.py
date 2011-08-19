@@ -41,10 +41,9 @@ def extract_metadata(parser):
 
     return metadata
 
-def scale_from_metadata(metadata):
+def defensive_get(metadata, key):
     try:
-        height = metadata.get('height', None)
-        width = metadata.get('width', None)
+        return metadata.get(key, None)
     except (ValueError, AttributeError):
-        return None, None
-    return height, width
+        return None
+

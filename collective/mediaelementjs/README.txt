@@ -50,3 +50,14 @@ been set to the mediaelementjs view.
     True
     >>> 'href="http://nohost/plone/Members/test_user_1_/barsandtone.mp4"' in contents
     True
+
+The width and height of the movie are set in the video tag::
+
+  >>> '<video width="360" height="288"' in contents
+  True
+
+As well as the duration::
+
+  >>> '0:00:06.014000' in contents
+  True
+

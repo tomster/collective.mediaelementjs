@@ -3,17 +3,21 @@ import os
 
 from Products.Five.browser import BrowserView
 
+from collective.mediaelementjs.interfaces import IMediaInfo
 
 class File(BrowserView):
 
     def __init__(self, context, request):
         super(File, self).__init__(context, request)
 
-    def videos(self):
-        return[dict(url=self.href(),
-                    title=self.context.Title(),
-                    description=self.context.Description(),
-                    )]
+    def video(self):
+        info = IMediaInfo(self.context)
+        return dict(url=self.href(),
+            title=self.context.Title(),
+            description=self.context.Description(),
+            height=info.height,
+            width=info.width,
+            duration=info.duration)
 
     def getFilename(self):
         context = aq_inner(self.context)
@@ -22,7 +26,7 @@ class File(BrowserView):
     def href(self):
         context = aq_inner(self.context)
         ext = ''
-        url = self.context.absolute_url()
+        url = context.absolute_url()
         filename = self.getFilename()
         if filename:
             extension = os.path.splitext(filename)[1]

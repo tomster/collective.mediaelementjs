@@ -9,7 +9,8 @@
 <body>
 
 <div metal:fill-slot="main">
-    <tal:main-macro metal:define-macro="main">
+    <tal:main-macro metal:define-macro="main"
+      tal:define="video view/video">
 
         <div tal:replace="structure provider:plone.abovecontenttitle" />
 
@@ -29,15 +30,15 @@
 
         <div tal:replace="structure provider:plone.abovecontentbody" />
 
-        <h3 tal:replace="view/href">Hello MediaElementJS!</h3>
-
-        <video width="720" height="576" controls autoplay>
+        <video width="" height="" controls autoplay
+          tal:attributes="width video/width; height video/height">
           <source src="" tal:attributes="src view/href"  type="video/mp4" />
           <object width="720" height="576" type="application/x-shockwave-flash" data="++resource++collective.mediaelementjs/flashmediaelement.swf">
             <param name="movie" value="++resource++collective.mediaelementjs/flashmediaelement.swf" />
             <param name="flashvars" value="" tal:attributes="value python:'file=%s' % view.href()" />
           </object>
         </video>
+        <p class="documentByLine" tal:content="video/duration"></p>
         <script>
         $('video').mediaelementplayer();
         </script>

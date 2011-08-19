@@ -16,3 +16,4 @@ class IMediaInfo(Interface):
     """
     width = schema.Int(title=_(u"Width"), required=False)
     height = schema.Int(title=_(u"Height"), required=False)
+    duration = schema.Timedelta(title=_(u"Duration"), required=False)

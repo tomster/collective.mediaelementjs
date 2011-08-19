@@ -3,7 +3,7 @@ from zope.interface import alsoProvides, noLongerProvides
 
 from collective.mediaelementjs.interfaces import IVideo, IMediaInfo
 from collective.mediaelementjs.metadata_extraction import parse_raw
-from collective.mediaelementjs.metadata_extraction import scale_from_metadata
+from collective.mediaelementjs.metadata_extraction import defensive_get
 
 from Products.ATContentTypes import interface
 from Products.Archetypes.interfaces import IObjectInitializedEvent
@@ -57,18 +57,16 @@ class ChangeView(object):
     def handleVideo(self):
         handle = self.file_handle
         metadata = parse_raw(handle)
-        height, width = scale_from_metadata(metadata)
         handle.close()
         
         if not IVideo.providedBy(self.content):
             alsoProvides(self.content, IVideo)
             self.object.reindexObject(idxs=['object_provides'])
 
-        if height and width:
-            info = IMediaInfo(self.content)
-            info.height = height
-            info.width = width
-            
+        info = IMediaInfo(self.content)
+        info.height = defensive_get(metadata, 'height')
+        info.width = defensive_get(metadata, 'width')
+        info.duration = defensive_get(metadata, 'duration')
 
 
 class ChangeFileView(ChangeView):

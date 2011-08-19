@@ -13,6 +13,7 @@ class VideoInfo(Persistent):
     def __init__(self):
         self.height = None
         self.width = None
+        self.duration = None
 
 VideoInfoAdapter = factory(VideoInfo)
 

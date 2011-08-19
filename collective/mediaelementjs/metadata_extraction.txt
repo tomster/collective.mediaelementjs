@@ -10,22 +10,29 @@ Unittests for metadata_extraction.py without setting up Plone.
 
 Video Files should return height and width
     >>> metadata = metaex.parse_file(testfile_home + '/barsandtone.mp4')
-    >>> height, width = metaex.scale_from_metadata(metadata)
+    >>> height = metaex.defensive_get(metadata, 'height')
+    >>> width = metaex.defensive_get(metadata, 'width')
+    >>> duration = metaex.defensive_get(metadata, 'duration')
     >>> height
     288
     >>> width
     360
-
+    >>> print duration
+    0:00:06.014000
 
 Extract Metadata directly from File handle
     >>> file_handle = open(testfile_home + '/barsandtone.mp4', 'rb')
     >>> metadata = metaex.parse_raw(file_handle)
-    >>> height, width = metaex.scale_from_metadata(metadata)
+    >>> height = metaex.defensive_get(metadata, 'height')
+    >>> width = metaex.defensive_get(metadata, 'width')
+    >>> duration = metaex.defensive_get(metadata, 'duration')
     >>> file_handle.close()
     >>> height
     288
     >>> width
     360
+    >>> print duration
+    0:00:06.014000
     >>> file_handle.close()
 
 
