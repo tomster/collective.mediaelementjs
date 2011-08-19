@@ -7,7 +7,7 @@ tests_require = ['collective.testcaselayer', 'interlude']
 
 setup(name='collective.mediaelementjs',
     version=version,
-    description="A simple integration of the `MediaElementJS <http://mediaelementjs.com/>`_ video player for Plone.",
+    description="A simple integration of the MediaElementJS video player for Plone.",
     long_description=open("README.rst").read() + "\n" +
     open(os.path.join("docs", "HISTORY.rst")).read(),
     # Get more strings from
@@ -15,11 +15,13 @@ setup(name='collective.mediaelementjs',
     classifiers=[
     "Framework :: Plone",
     "Programming Language :: Python",
+    "Development Status :: 3 - Alpha",
+    "Topic :: Multimedia :: Video :: Display",
     ],
     keywords='video plone mp4 html5',
-    author='Tom Lazzr',
+    author='Tom Lazar',
     author_email='tom@tomster.org',
-    url='http://svn.plone.org/svn/collective/',
+    url='https://github.com/tomster/collective.mediaelementjs',
     license='GPL',
     packages=find_packages(exclude=['ez_setup']),
     namespace_packages=['collective'],
