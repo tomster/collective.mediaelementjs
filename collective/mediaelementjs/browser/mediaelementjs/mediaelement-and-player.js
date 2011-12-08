@@ -15,7 +15,7 @@
 var mejs = mejs || {};
 
 // version number
-mejs.version = '2.3.2';
+mejs.version = '2.4.2';
 
 // player number (for missing, same id attr)
 mejs.meIndex = 0;
@@ -27,7 +27,13 @@ mejs.plugins = {
 	],
 	flash: [
 		{version: [9,0,124], types: ['video/mp4','video/m4v','video/mov','video/flv','video/x-flv','audio/flv','audio/x-flv','audio/mp3','audio/m4a','audio/mpeg']}
-		//,{version: [12,0], types: ['video/webm']} // for future reference
+		//,{version: [12,0], types: ['video/webm']} // for future reference (hopefully!)
+	],
+	youtube: [
+		{version: null, types: ['video/youtube']}
+	],
+	vimeo: [
+		{version: null, types: ['video/vimeo']}
 	]
 };
 
@@ -71,47 +77,77 @@ mejs.Utility = {
 		return path;
 	},
 	secondsToTimeCode: function(time, forceHours, showFrameCount, fps) {
-        //add framecount
-        if (typeof showFrameCount == 'undefined') {
-            showFrameCount=false;
-        } else if(typeof fps == 'undefined') {
-            fps = 25;
-        }
-
-        var hours = Math.floor(time / 3600) % 24,
-        	minutes = Math.floor(time / 60) % 60,
-        	seconds = Math.floor(time % 60),
-        	frames = Math.floor(((time % 1)*fps).toFixed(3)),
-        	result = 
-        			( (forceHours || hours > 0) ? (hours < 10 ? '0' + hours : hours) + ':' : '')
-					+ (minutes < 10 ? '0' + minutes : minutes) + ':'
-					+ (seconds < 10 ? '0' + seconds : seconds)
-					+ ((showFrameCount) ? ':' + (frames < 10 ? '0' + frames : frames) : '');
-
-        return result;
+		//add framecount
+		if (typeof showFrameCount == 'undefined') {
+		    showFrameCount=false;
+		} else if(typeof fps == 'undefined') {
+		    fps = 25;
+		}
+	
+		var hours = Math.floor(time / 3600) % 24,
+			minutes = Math.floor(time / 60) % 60,
+			seconds = Math.floor(time % 60),
+			frames = Math.floor(((time % 1)*fps).toFixed(3)),
+			result = 
+					( (forceHours || hours > 0) ? (hours < 10 ? '0' + hours : hours) + ':' : '')
+						+ (minutes < 10 ? '0' + minutes : minutes) + ':'
+						+ (seconds < 10 ? '0' + seconds : seconds)
+						+ ((showFrameCount) ? ':' + (frames < 10 ? '0' + frames : frames) : '');
+	
+		return result;
 	},
 	
 	timeCodeToSeconds: function(hh_mm_ss_ff, forceHours, showFrameCount, fps){
-        if (typeof showFrameCount == 'undefined') {
-            showFrameCount=false;
-        } else if(typeof fps == 'undefined') {
-            fps = 25;
-        }
-
-        var tc_array = hh_mm_ss_ff.split(":"),
-        	tc_hh = parseInt(tc_array[0]),
-        	tc_mm = parseInt(tc_array[1]),
-        	tc_ss = parseInt(tc_array[2]),
-        	tc_ff = 0,
-        	tc_in_seconds = 0;
-        
-        if (showFrameCount) {
-            tc_ff = parseInt(tc_array[3])/fps;
-        }
-        
-        tc_in_seconds = ( tc_hh * 3600 ) + ( tc_mm * 60 ) + tc_ss + tc_ff;
-        
-        return tc_in_seconds;
+		if (typeof showFrameCount == 'undefined') {
+		    showFrameCount=false;
+		} else if(typeof fps == 'undefined') {
+		    fps = 25;
+		}
+	
+		var tc_array = hh_mm_ss_ff.split(":"),
+			tc_hh = parseInt(tc_array[0], 10),
+			tc_mm = parseInt(tc_array[1], 10),
+			tc_ss = parseInt(tc_array[2], 10),
+			tc_ff = 0,
+			tc_in_seconds = 0;
+		
+		if (showFrameCount) {
+		    tc_ff = parseInt(tc_array[3])/fps;
+		}
+		
+		tc_in_seconds = ( tc_hh * 3600 ) + ( tc_mm * 60 ) + tc_ss + tc_ff;
+		
+		return tc_in_seconds;
+	},
+	
+	/* borrowed from SWFObject: http://code.google.com/p/swfobject/source/browse/trunk/swfobject/src/swfobject.js#474 */
+	removeSwf: function(id) {
+		var obj = document.getElementById(id);
+		if (obj && obj.nodeName == "OBJECT") {
+			if (mejs.MediaFeatures.isIE) {
+				obj.style.display = "none";
+				(function(){
+					if (obj.readyState == 4) {
+						mejs.Utility.removeObjectInIE(id);
+					} else {
+						setTimeout(arguments.callee, 10);
+					}
+				})();
+			} else {
+				obj.parentNode.removeChild(obj);
+			}
+		}
+	},
+	removeObjectInIE: function(id) {
+		var obj = document.getElementById(id);
+		if (obj) {
+			for (var i in obj) {
+				if (typeof obj[i] == "function") {
+					obj[i] = null;
+				}
+			}
+			obj.parentNode.removeChild(obj);
+		}		
 	}
 };
 
@@ -238,8 +274,8 @@ mejs.MediaFeatures = {
 		t.isIE = (nav.appName.toLowerCase().indexOf("microsoft") != -1);
 		t.isChrome = (ua.match(/chrome/gi) !== null);
 		t.isFirefox = (ua.match(/firefox/gi) !== null);
-		t.isGecko = (ua.match(/gecko/gi) !== null);
 		t.isWebkit = (ua.match(/webkit/gi) !== null);
+		t.isGecko = (ua.match(/gecko/gi) !== null) && !t.isWebkit;
 		t.hasTouch = ('ontouchstart' in window);
 
 		// create HTML5 media elements for IE before 9, get a <video> element for fullscreen detection
@@ -408,25 +444,43 @@ mejs.PluginMediaElement.prototype = {
 	// HTML5 methods
 	play: function () {
 		if (this.pluginApi != null) {
-			this.pluginApi.playMedia();
+			if (this.pluginType == 'youtube') {
+				this.pluginApi.playVideo();
+			} else {
+				this.pluginApi.playMedia();
+			}
 			this.paused = false;
 		}
 	},
 	load: function () {
 		if (this.pluginApi != null) {
-			this.pluginApi.loadMedia();
+			if (this.pluginType == 'youtube') {
+			} else {
+				this.pluginApi.loadMedia();
+			}
+			
 			this.paused = false;
 		}
 	},
 	pause: function () {
 		if (this.pluginApi != null) {
-			this.pluginApi.pauseMedia();
+			if (this.pluginType == 'youtube') {
+				this.pluginApi.pauseVideo();
+			} else {
+				this.pluginApi.pauseMedia();
+			}			
+			
+			
 			this.paused = true;
 		}
 	},
 	stop: function () {
 		if (this.pluginApi != null) {
-			this.pluginApi.stopMedia();
+			if (this.pluginType == 'youtube') {
+				this.pluginApi.stopVideo();
+			} else {
+				this.pluginApi.stopMedia();
+			}	
 			this.paused = true;
 		}
 	},
@@ -478,46 +532,76 @@ mejs.PluginMediaElement.prototype = {
 	},
 	setCurrentTime: function (time) {
 		if (this.pluginApi != null) {
-			this.pluginApi.setCurrentTime(time);
+			if (this.pluginType == 'youtube') {
+				this.pluginApi.seekTo(time);
+			} else {
+				this.pluginApi.setCurrentTime(time);
+			}				
+			
+			
+			
 			this.currentTime = time;
 		}
 	},
 	setVolume: function (volume) {
 		if (this.pluginApi != null) {
-			this.pluginApi.setVolume(volume);
+			// same on YouTube and MEjs
+			if (this.pluginType == 'youtube') {
+				this.pluginApi.setVolume(volume * 100);
+			} else {
+				this.pluginApi.setVolume(volume);
+			}
 			this.volume = volume;
 		}
 	},
 	setMuted: function (muted) {
 		if (this.pluginApi != null) {
-			this.pluginApi.setMuted(muted);
+			if (this.pluginType == 'youtube') {
+				if (muted) {
+					this.pluginApi.mute();
+				} else {
+					this.pluginApi.unMute();
+				}
+				this.muted = muted;
+				this.dispatchEvent('volumechange');
+			} else {
+				this.pluginApi.setMuted(muted);
+			}
 			this.muted = muted;
 		}
 	},
 
 	// additional non-HTML5 methods
 	setVideoSize: function (width, height) {
-		if ( this.pluginElement.style) {
-			this.pluginElement.style.width = width + 'px';
-			this.pluginElement.style.height = height + 'px';
-		}
-		if (this.pluginApi != null && this.pluginApi.setVideoSize) {
-			this.pluginApi.setVideoSize(width, height);
-		}
+		
+		//if (this.pluginType == 'flash' || this.pluginType == 'silverlight') {
+			if ( this.pluginElement.style) {
+				this.pluginElement.style.width = width + 'px';
+				this.pluginElement.style.height = height + 'px';
+			}
+			if (this.pluginApi != null && this.pluginApi.setVideoSize) {
+				this.pluginApi.setVideoSize(width, height);
+			}
+		//}
 	},
 
 	setFullscreen: function (fullscreen) {
-		if (this.pluginApi != null) {
+		if (this.pluginApi != null && this.pluginApi.setFullscreen) {
 			this.pluginApi.setFullscreen(fullscreen);
 		}
 	},
 	
 	enterFullScreen: function() {
-		this.setFullscreen(true);
+		if (this.pluginApi != null && this.pluginApi.setFullscreen) {
+			this.setFullscreen(true);
+		}		
+		
 	},
 	
-	enterFullScreen: function() {
-		this.setFullscreen(false);
+	exitFullScreen: function() {
+		if (this.pluginApi != null && this.pluginApi.setFullscreen) {
+			this.setFullscreen(false);
+		}
 	},	
 
 	// start: fake events
@@ -549,10 +633,13 @@ mejs.PluginMediaElement.prototype = {
 				callbacks[i].apply(null, args);
 			}
 		}
-	}
+	},
 	// end: fake events
+	
+	remove: function() {
+		mejs.Utility.removeSwf(this.pluginElement.id);
+	}
 };
-
 
 // Handles calls from Flash/Silverlight and reports them as native <video/audio> events and properties
 mejs.MediaPluginBridge = {
@@ -571,19 +658,21 @@ mejs.MediaPluginBridge = {
 		var pluginMediaElement = this.pluginMediaElements[id],
 			htmlMediaElement = this.htmlMediaElements[id];
 
-		// find the javascript bridge
-		switch (pluginMediaElement.pluginType) {
-			case "flash":
-				pluginMediaElement.pluginElement = pluginMediaElement.pluginApi = document.getElementById(id);
-				break;
-			case "silverlight":
-				pluginMediaElement.pluginElement = document.getElementById(pluginMediaElement.id);
-				pluginMediaElement.pluginApi = pluginMediaElement.pluginElement.Content.MediaElementJS;
-				break;
-		}
-
-		if (pluginMediaElement.pluginApi != null && pluginMediaElement.success) {
-			pluginMediaElement.success(pluginMediaElement, htmlMediaElement);
+		if (pluginMediaElement) {
+			// find the javascript bridge
+			switch (pluginMediaElement.pluginType) {
+				case "flash":
+					pluginMediaElement.pluginElement = pluginMediaElement.pluginApi = document.getElementById(id);
+					break;
+				case "silverlight":
+					pluginMediaElement.pluginElement = document.getElementById(pluginMediaElement.id);
+					pluginMediaElement.pluginApi = pluginMediaElement.pluginElement.Content.MediaElementJS;
+					break;
+			}
+	
+			if (pluginMediaElement.pluginApi != null && pluginMediaElement.success) {
+				pluginMediaElement.success(pluginMediaElement, htmlMediaElement);
+			}
 		}
 	},
 
@@ -640,7 +729,7 @@ mejs.MediaElementDefaults = {
 	// none: forces fallback view
 	mode: 'auto',
 	// remove or reorder to change plugin priority and availability
-	plugins: ['flash','silverlight'],
+	plugins: ['flash','silverlight','youtube','vimeo'],
 	// shows debug errors on screen
 	enablePluginDebug: false,
 	// overrides the type specified, useful for dynamic instantiation
@@ -842,14 +931,19 @@ mejs.HtmlMediaElementShim = {
 				for (j=0; j<options.plugins.length; j++) {
 
 					pluginName = options.plugins[j];
-
+			
 					// test version of plugin (for future features)
-					pluginVersions = mejs.plugins[pluginName];
+					pluginVersions = mejs.plugins[pluginName];				
+					
 					for (k=0; k<pluginVersions.length; k++) {
 						pluginInfo = pluginVersions[k];
-
+					
 						// test if user has the correct plugin version
-						if (mejs.PluginDetector.hasPluginVersion(pluginName, pluginInfo.version)) {
+						
+						// for youtube/vimeo
+						if (pluginInfo.version == null || 
+							
+							mejs.PluginDetector.hasPluginVersion(pluginName, pluginInfo.version)) {
 
 							// test for plugin playback types
 							for (l=0; l<pluginInfo.types.length; l++) {
@@ -963,6 +1057,7 @@ mejs.HtmlMediaElementShim = {
 
 		// add container (must be added to DOM before inserting HTML for IE)
 		container.className = 'me-plugin';
+		container.id = pluginid + '_container';
 		htmlMediaElement.parentNode.insertBefore(container, htmlMediaElement);
 
 		// flash/silverlight vars
@@ -1041,6 +1136,46 @@ mejs.HtmlMediaElementShim = {
 'height="' + height + '"></embed>';
 				}
 				break;
+			
+			case 'youtube':
+			
+				
+				var
+					videoId = playback.url.substr(playback.url.lastIndexOf('=')+1);
+					youtubeSettings = {
+						container: container,
+						containerId: container.id,
+						pluginMediaElement: pluginMediaElement,
+						pluginId: pluginid,
+						videoId: videoId,
+						height: height,
+						width: width	
+					};				
+				
+				if (mejs.PluginDetector.hasPluginVersion('flash', [10,0,0]) ) {
+					mejs.YouTubeApi.createFlash(youtubeSettings);
+				} else {
+					mejs.YouTubeApi.enqueueIframe(youtubeSettings);		
+				}
+				
+				break;
+			
+			// DEMO Code. Does NOT work.
+			case 'vimeo':
+				console.log('vimeoid');
+				
+				pluginMediaElement.vimeoid = playback.url.substr(playback.url.lastIndexOf('/')+1);
+				
+				container.innerHTML =
+					'<object width="' + width + '" height="' + height + '">' +
+						'<param name="allowfullscreen" value="true" />' +
+						'<param name="allowscriptaccess" value="always" />' +
+						'<param name="flashvars" value="api=1" />' + 
+						'<param name="movie" value="http://vimeo.com/moogaloop.swf?clip_id=' + pluginMediaElement.vimeoid  + '&amp;server=vimeo.com&amp;show_title=0&amp;show_byline=0&amp;show_portrait=0&amp;color=00adef&amp;fullscreen=1&amp;autoplay=0&amp;loop=0" />' +
+						'<embed src="//vimeo.com/moogaloop.swf?api=1&amp;clip_id=' + pluginMediaElement.vimeoid + '&amp;server=vimeo.com&amp;show_title=0&amp;show_byline=0&amp;show_portrait=0&amp;color=00adef&amp;fullscreen=1&amp;autoplay=0&amp;loop=0" type="application/x-shockwave-flash" allowfullscreen="true" allowscriptaccess="always" width="' + width + '" height="' + height + '"></embed>' +
+					'</object>';
+					
+				break;			
 		}
 		// hide original element
 		htmlMediaElement.style.display = 'none';
@@ -1096,6 +1231,231 @@ mejs.HtmlMediaElementShim = {
 	}
 };
 
+/*
+ - test on IE (object vs. embed)
+ - determine when to use iframe (Firefox, Safari, Mobile) vs. Flash (Chrome, IE)
+ - fullscreen?
+*/
+
+// YouTube Flash and Iframe API
+mejs.YouTubeApi = {
+	isIframeStarted: false,
+	isIframeLoaded: false,
+	loadIframeApi: function() {
+		if (!this.isIframeStarted) {
+			var tag = document.createElement('script');
+			tag.src = "http://www.youtube.com/player_api";
+			var firstScriptTag = document.getElementsByTagName('script')[0];
+			firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+			this.isIframeStarted = true;
+		}
+	},
+	iframeQueue: [],
+	enqueueIframe: function(yt) {
+		
+		if (this.isLoaded) {
+			this.createIframe(yt);
+		} else {
+			this.loadIframeApi();
+			this.iframeQueue.push(yt);
+		}
+	},
+	createIframe: function(settings) {
+		
+		var
+		pluginMediaElement = settings.pluginMediaElement,	
+		player = new YT.Player(settings.containerId, {
+			height: settings.height,
+			width: settings.width,
+			videoId: settings.videoId,
+			playerVars: {controls:0},
+			events: {
+				'onReady': function() {
+					
+					// hook up iframe object to MEjs
+					settings.pluginMediaElement.pluginApi = player;
+					
+					// init mejs
+					mejs.MediaPluginBridge.initPlugin(settings.pluginId);
+					
+					// create timer
+					setInterval(function() {
+						mejs.YouTubeApi.createEvent(player, pluginMediaElement, 'timeupdate');
+					}, 250);					
+				},
+				'onStateChange': function(e) {
+					
+					mejs.YouTubeApi.handleStateChange(e.data, player, pluginMediaElement);
+					
+				}
+			}
+		});
+	},
+	
+	createEvent: function (player, pluginMediaElement, eventName) {
+		var obj = {
+			type: eventName,
+			target: pluginMediaElement
+		};
+
+		if (player && player.getDuration) {
+			
+			// time 
+			pluginMediaElement.currentTime = obj.currentTime = player.getCurrentTime();
+			pluginMediaElement.duration = obj.duration = player.getDuration();
+			
+			// state
+			obj.paused = pluginMediaElement.paused;
+			obj.ended = pluginMediaElement.ended;			
+			
+			// sound
+			obj.muted = player.isMuted();
+			obj.volume = player.getVolume() / 100;
+			
+			// progress
+			obj.bytesTotal = player.getVideoBytesTotal();
+			obj.bufferedBytes = player.getVideoBytesLoaded();
+			
+			// fake the W3C buffered TimeRange
+			var bufferedTime = obj.bufferedBytes / obj.bytesTotal * obj.duration;
+			
+			obj.target.buffered = obj.buffered = {
+				start: function(index) {
+					return 0;
+				},
+				end: function (index) {
+					return bufferedTime;
+				},
+				length: 1
+			};
+			
+		}
+		
+		// send event up the chain
+		pluginMediaElement.dispatchEvent(obj.type, obj);
+	},	
+	
+	iFrameReady: function() {
+		
+		this.isIframeLoaded = true;
+		
+		while (this.iframeQueue.length > 0) {
+			var settings = this.iframeQueue.pop();
+			this.createIframe(settings);
+		}	
+	},
+	
+	// FLASH!
+	flashPlayers: {},
+	createFlash: function(settings) {
+		
+		this.flashPlayers[settings.pluginId] = settings;
+		
+		/*
+		settings.container.innerHTML =
+			'<object type="application/x-shockwave-flash" id="' + settings.pluginId + '" data="//www.youtube.com/apiplayer?enablejsapi=1&amp;playerapiid=' + settings.pluginId  + '&amp;version=3&amp;autoplay=0&amp;controls=0&amp;modestbranding=1&loop=0" ' +
+				'width="' + settings.width + '" height="' + settings.height + '" style="visibility: visible; ">' +
+				'<param name="allowScriptAccess" value="always">' +
+				'<param name="wmode" value="transparent">' +
+			'</object>';
+		*/
+
+		var specialIEContainer,
+			youtubeUrl = 'http://www.youtube.com/apiplayer?enablejsapi=1&amp;playerapiid=' + settings.pluginId  + '&amp;version=3&amp;autoplay=0&amp;controls=0&amp;modestbranding=1&loop=0';
+			
+		if (mejs.MediaFeatures.isIE) {
+			
+			specialIEContainer = document.createElement('div');
+			settings.container.appendChild(specialIEContainer);
+			specialIEContainer.outerHTML = '<object classid="clsid:D27CDB6E-AE6D-11cf-96B8-444553540000" codebase="//download.macromedia.com/pub/shockwave/cabs/flash/swflash.cab" ' +
+'id="' + settings.pluginId + '" width="' + settings.width + '" height="' + settings.height + '">' +
+	'<param name="movie" value="' + youtubeUrl + '" />' +
+	'<param name="wmode" value="transparent" />' +
+	'<param name="allowScriptAccess" value="always" />' +
+	'<param name="allowFullScreen" value="true" />' +
+'</object>';
+		} else {
+		settings.container.innerHTML =
+			'<object type="application/x-shockwave-flash" id="' + settings.pluginId + '" data="' + youtubeUrl + '" ' +
+				'width="' + settings.width + '" height="' + settings.height + '" style="visibility: visible; ">' +
+				'<param name="allowScriptAccess" value="always">' +
+				'<param name="wmode" value="transparent">' +
+			'</object>';
+		}		
+		
+	},
+	
+	flashReady: function(id) {
+		var
+			settings = this.flashPlayers[id],
+			player = document.getElementById(id),
+			pluginMediaElement = settings.pluginMediaElement;
+		
+		// hook up and return to MediaELementPlayer.success	
+		pluginMediaElement.pluginApi = 
+		pluginMediaElement.pluginElement = player;
+		mejs.MediaPluginBridge.initPlugin(id);
+		
+		// load the youtube video
+		player.cueVideoById(settings.videoId);
+		
+		var callbackName = settings.containerId + '_callback'
+		
+		window[callbackName] = function(e) {
+			mejs.YouTubeApi.handleStateChange(e, player, pluginMediaElement);
+		}
+		
+		player.addEventListener('onStateChange', callbackName);
+		
+		setInterval(function() {
+			mejs.YouTubeApi.createEvent(player, pluginMediaElement, 'timeupdate');
+		}, 250);
+	},
+	
+	handleStateChange: function(youTubeState, player, pluginMediaElement) {
+		switch (youTubeState) {
+			case -1: // not started
+				pluginMediaElement.paused = true;
+				pluginMediaElement.ended = true;
+				mejs.YouTubeApi.createEvent(player, pluginMediaElement, 'loadedmetadata');
+				//createYouTubeEvent(player, pluginMediaElement, 'loadeddata');
+				break;
+			case 0:
+				pluginMediaElement.paused = false;
+				pluginMediaElement.ended = true;
+				mejs.YouTubeApi.createEvent(player, pluginMediaElement, 'ended');
+				break;
+			case 1:
+				pluginMediaElement.paused = false;
+				pluginMediaElement.ended = false;				
+				mejs.YouTubeApi.createEvent(player, pluginMediaElement, 'play');
+				mejs.YouTubeApi.createEvent(player, pluginMediaElement, 'playing');
+				break;
+			case 2:
+				pluginMediaElement.paused = true;
+				pluginMediaElement.ended = false;				
+				mejs.YouTubeApi.createEvent(player, pluginMediaElement, 'pause');
+				break;
+			case 3: // buffering
+				mejs.YouTubeApi.createEvent(player, pluginMediaElement, 'progress');
+				break;
+			case 5:
+				// cued?
+				break;						
+			
+		}			
+		
+	}
+}
+// IFRAME
+function onYouTubePlayerAPIReady() {
+	mejs.YouTubeApi.iFrameReady();
+}
+// FLASH
+function onYouTubePlayerReady(id) {
+	mejs.YouTubeApi.flashReady(id);
+}
+
 window.mejs = mejs;
 window.MediaElement = mejs.MediaElement;
 
@@ -1129,10 +1489,14 @@ if (typeof jQuery != 'undefined') {
 		videoWidth: -1,
 		// if set, overrides <video height>
 		videoHeight: -1,
+		// default if the user doesn't specify
+		defaultAudioWidth: 400,
+		// default if the user doesn't specify
+		defaultAudioHeight: 30,
 		// width of audio player
-		audioWidth: 400,
+		audioWidth: -1,
 		// height of audio player
-		audioHeight: 30,
+		audioHeight: -1,		
 		// initial volume when the player starts (overrided by user cookie)
 		startVolume: 0.8,
 		// useful for <audio> player loops
@@ -1160,10 +1524,88 @@ if (typeof jQuery != 'undefined') {
 		// features to show
 		features: ['playpause','current','progress','duration','tracks','volume','fullscreen'],
 		// only for dynamic
-		isVideo: true
+		isVideo: true,
+		
+		// turns keyboard support on and off for this instance
+		enableKeyboard: true,
+		
+		// whenthis player starts, it will pause other players
+		pauseOtherPlayers: true,
+		
+		// array of keyboard actions such as play pause
+		keyActions: [
+				{
+						key: 32, // SPACE
+						action: function(player, media) {
+								if (media.paused || media.ended) {
+										media.play();	
+								} else {
+										media.pause();
+								}										
+						}
+				},
+				{
+						key: 38, // UP
+						action: function(player, media) {
+								var newVolume = Math.min(media.volume + 0.1, 1);
+								media.setVolume(newVolume);
+						}
+				},
+				{
+						key: 40, // DOWN
+						action: function(player, media) {
+								var newVolume = Math.max(media.volume - 0.1, 0);
+								media.setVolume(newVolume);
+						}
+				},
+				{
+						key: 37, // LEFT
+						action: function(player, media) {
+								if (!media.ended && !media.paused) {
+										if (player.isVideo) {
+												player.showControls();
+												player.startControlsTimer();
+										}
+										
+										// 5%
+										var newTime = Math.min(media.currentTime - (media.duration * 0.05), media.duration);
+										media.setCurrentTime(newTime);
+								}
+						}
+				},
+				{
+						key: 39, // RIGHT
+						action: function(player, media) {
+								if (!media.ended && !media.paused) {
+										if (player.isVideo) {
+												player.showControls();
+												player.startControlsTimer();
+										}
+										
+										// 5%
+										var newTime = Math.max(media.currentTime + (media.duration * 0.05), 0);
+										media.setCurrentTime(newTime);
+								}
+						}
+				},
+				{
+						key: 70, // f
+						action: function(player, media) {
+								if (typeof player.enterFullScreen != 'undefined') {
+										if (player.isFullScreen) {
+												player.exitFullScreen();
+										} else {
+												player.enterFullScreen();
+										}
+								}
+						}
+				}					
+		]		
 	};
 
 	mejs.mepIndex = 0;
+	
+	mejs.players = [];
 
 	// wraps a MediaElement object in player controls
 	mejs.MediaElementPlayer = function(node, o) {
@@ -1185,9 +1627,18 @@ if (typeof jQuery != 'undefined') {
 			// attach player to DOM node for reference
 			t.node.player = t;
 		}
-					
-		// create options
-		t.options = $.extend({},mejs.MepDefaults,o);		
+				
+				
+		// try to get options from data-mejsoptions
+		if (typeof o == 'undefined') {
+			o = t.$node.data('mejsoptions');	
+		}
+			
+		// extend default options
+		t.options = $.extend({},mejs.MepDefaults,o);
+		
+		// add to player array (for focus events)
+		mejs.players.push(t);
 		
 		// start up
 		t.init();
@@ -1197,6 +1648,11 @@ if (typeof jQuery != 'undefined') {
 
 	// actual player
 	mejs.MediaElementPlayer.prototype = {
+		
+		hasFocus: false,
+		
+		controlsAreVisible: true,
+		
 		init: function() {
 
 			var
@@ -1293,53 +1749,34 @@ if (typeof jQuery != 'undefined') {
 				t.layers = t.container.find('.mejs-layers');
 
 				// determine the size
-				if (t.isVideo) {
 				
-					/* size priority:
-						(1) videoWidth (forced), 
-						(2) style="width;height;"
-						(3) width attribute,
-						(4) defaultVideoWidth (for unspecified cases)
-					*/
-					
-					if (t.options.videoWidth > 0 || t.options.videoWidth.toString().indexOf('%') > -1) {
-						t.width = t.options.videoWidth;
-					} else if (t.media.style.width !== '' && t.media.style.width !== null) {
-						t.width = t.media.style.width;						
-					} else if (t.media.getAttribute('width') !== null) {
-						t.width = t.$media.attr('width');
-					} else {
-						t.width = t.options.defaultVideoWidth;
-					}
-					
-					if (t.options.videoHeight > 0 || t.options.videoHeight.toString().indexOf('%') > -1) {
-						t.height = t.options.videoHeight;
-					} else if (t.media.style.height !== '' && t.media.style.height !== null) {
-						t.height = t.media.style.height;
-					} else if (t.$media[0].getAttribute('height') !== null) {
-						t.height = t.$media.attr('height');	
-					} else {
-						t.height = t.options.defaultVideoHeight;
-					}					
-					
-					/*
-					t.width = (t.options.videoWidth > 0 || t.options.videoWidth.toString().indexOf('%') > -1) ? 
-								t.options.videoWidth : 
-								(t.$media[0].getAttribute('width') !== null) ? 
-									t.$media.attr('width') : 
-									t.options.defaultVideoWidth;
-					
-					
-					t.height = (t.options.videoHeight > 0 || t.options.videoHeight.toString().indexOf('%') > -1) ? 
-								t.options.videoHeight : 
-								(t.$media[0].getAttribute('height') !== null) ? 
-									t.$media.attr('height') : 
-									t.options.defaultVideoHeight;
-									
-					*/
+				/* size priority:
+					(1) videoWidth (forced), 
+					(2) style="width;height;"
+					(3) width attribute,
+					(4) defaultVideoWidth (for unspecified cases)
+				*/
+				
+				var capsTagName = tagName.substring(0,1).toUpperCase() + tagName.substring(1);
+				
+				if (t.options[tagName + 'Width'] > 0 || t.options[tagName + 'Width'].toString().indexOf('%') > -1) {
+					t.width = t.options[tagName + 'Width'];
+				} else if (t.media.style.width !== '' && t.media.style.width !== null) {
+					t.width = t.media.style.width;						
+				} else if (t.media.getAttribute('width') !== null) {
+					t.width = t.$media.attr('width');
 				} else {
-					t.width = t.options.audioWidth;
-					t.height = t.options.audioHeight;
+					t.width = t.options['default' + capsTagName + 'Width'];
+				}
+				
+				if (t.options[tagName + 'Height'] > 0 || t.options[tagName + 'Height'].toString().indexOf('%') > -1) {
+					t.height = t.options[tagName + 'Height'];
+				} else if (t.media.style.height !== '' && t.media.style.height !== null) {
+					t.height = t.media.style.height;
+				} else if (t.$media[0].getAttribute('height') !== null) {
+					t.height = t.$media.attr('height');	
+				} else {
+					t.height = t.options['default' + capsTagName + 'Height'];
 				}
 
 				// set the size, while we wait for the plugins to load below
@@ -1349,12 +1786,12 @@ if (typeof jQuery != 'undefined') {
 				meOptions.pluginWidth = t.height;
 				meOptions.pluginHeight = t.width;				
 			}
+			
+			
 
 			// create MediaElement shim
 			mejs.MediaElement(t.$media[0], meOptions);
 		},
-		
-		controlsAreVisible: true,
 		
 		showControls: function(doAnimation) {
 			var t = this;
@@ -1393,8 +1830,9 @@ if (typeof jQuery != 'undefined') {
 
 		hideControls: function(doAnimation) {
 			//console.log('hide doAnimation', doAnimation);
-			var t = this,
-				doAnimation = typeof doAnimation == 'undefined' || doAnimation;
+			var t = this;
+			
+			doAnimation = typeof doAnimation == 'undefined' || doAnimation;
 			
 			if (!t.controlsAreVisible)
 				return;
@@ -1435,8 +1873,9 @@ if (typeof jQuery != 'undefined') {
 
 		startControlsTimer: function(timeout) {
 
-			var t = this,
-				timeout = typeof timeout != 'undefined' ? timeout : 500;
+			var t = this;
+			
+			timeout = typeof timeout != 'undefined' ? timeout : 1500;
 
 			t.killControlsTimer('start');
 
@@ -1501,6 +1940,7 @@ if (typeof jQuery != 'undefined') {
 				
 				// two built in features
 				t.buildposter(t, t.controls, t.layers, t.media);
+				t.buildkeyboard(t, t.controls, t.layers, t.media);
 				t.buildoverlays(t, t.controls, t.layers, t.media);
 
 				// grab for use by features
@@ -1584,10 +2024,13 @@ if (typeof jQuery != 'undefined') {
 							})
 							.bind('mousemove', function() {
 								if (t.controlsEnabled) {
-									if (!t.controlsAreVisible)
+									if (!t.controlsAreVisible) {
 										t.showControls();
+									}
 									//t.killControlsTimer('move');
-									t.startControlsTimer(2500);
+									if (!t.options.alwaysShowControls) {
+										t.startControlsTimer(2500);
+									}
 								}
 							})
 							.bind('mouseleave', function () {
@@ -1617,10 +2060,32 @@ if (typeof jQuery != 'undefined') {
 						}, false);
 					}
 				}
+				
+				// EVENTS
+
+				// FOCUS: when a video starts playing, it takes focus from other players (possibily pausing them)
+				media.addEventListener('play', function() {
+						
+						// go through all other players
+						for (var i=0, il=mejs.players.length; i<il; i++) {
+							var p = mejs.players[i];
+							if (p.id != t.id && t.options.pauseOtherPlayers && !p.paused && !p.ended) {
+								p.pause();
+							}
+							p.hasFocus = false;
+						}
+						
+						t.hasFocus = true;
+				},false);
+								
 
 				// ended for all
 				t.media.addEventListener('ended', function (e) {
-					t.media.setCurrentTime(0);
+					try{
+						t.media.setCurrentTime(0);
+					} catch (exp) {
+						
+					}
 					t.media.pause();
 					
 					if (t.setProgressRail)
@@ -1669,6 +2134,10 @@ if (typeof jQuery != 'undefined') {
 					t.setControlsSize();
 				});				
 
+				// TEMP: needs to be moved somewhere else
+				if (t.media.pluginType == 'youtube') {
+					t.container.find('.mejs-overlay-play').hide();	
+				}
 			}
 			
 			// force autoplay for HTML5
@@ -1679,7 +2148,12 @@ if (typeof jQuery != 'undefined') {
 
 
 			if (t.options.success) {
-				t.options.success(t.media, t.domNode, t);
+				
+				if (typeof t.options.success == 'string') {
+						window[t.options.success](t.media, t.domNode, t);
+				} else {
+						t.options.success(t.media, t.domNode, t);
+				}
 			}
 		},
 
@@ -1723,7 +2197,7 @@ if (typeof jQuery != 'undefined') {
 					.height('100%');
 					
 				// set shims
-				t.container.find('object embed')
+				t.container.find('object, embed, iframe')
 					.width('100%')
 					.height('100%');
 					
@@ -1914,6 +2388,38 @@ if (typeof jQuery != 'undefined') {
 				error.find('mejs-overlay-error').html("Error loading this resource");
 			}, false);				
 		},
+		
+		buildkeyboard: function(player, controls, layers, media) {
+
+				var t = this;
+				
+				// listen for key presses
+				$(document).keydown(function(e) {
+						
+						if (player.hasFocus && player.options.enableKeyboard) {
+										
+								// find a matching key
+								for (var i=0, il=player.options.keyActions.length; i<il; i++) {
+										var keyAction = player.options.keyActions[i];
+										if (e.keyCode == keyAction.key) {
+												e.preventDefault();
+												keyAction.action(player, media);
+												return false;
+										}
+								}
+						}
+						
+						return true;
+				});
+				
+				// check if someone clicked outside a player region, then kill its focus
+				$(document).click(function() {
+						if ($(event.target).closest('.mejs-container').length == 0) {
+								player.hasFocus = false;
+						}
+				});
+			
+		},
 
 		findTracks: function() {
 			var t = this,
@@ -1962,6 +2468,22 @@ if (typeof jQuery != 'undefined') {
 		},
 		setSrc: function(src) {
 			this.media.setSrc(src);
+		},
+		remove: function() {
+			var t = this;
+			
+			if (t.media.pluginType == 'flash') {
+				t.media.remove();
+			} else if (t.media.pluginTyp == 'native') {
+				t.media.prop('controls', true);
+			}
+			
+			// grab video and put it back in place
+			if (!t.isDynamic) {
+				t.$node.insertBefore(t.container)
+			}
+			
+			t.container.remove();
 		}
 	};
 
@@ -1973,6 +2495,11 @@ if (typeof jQuery != 'undefined') {
 			});
 		};
 	}
+	
+	$(document).ready(function() {
+		// auto enable using JSON attribute
+		$('.mejs-player').mediaelementplayer();
+	});
 	
 	// push out to window
 	window.MediaElementPlayer = mejs.MediaElementPlayer;
@@ -2295,11 +2822,17 @@ if (typeof jQuery != 'undefined') {
 (function($) {
 
 	$.extend(mejs.MepDefaults, {
-		muteText: 'Mute Toggle'
+		muteText: 'Mute Toggle',
+		hideVolumeOnTouchDevices: true
 	});
 
 	$.extend(MediaElementPlayer.prototype, {
 		buildvolume: function(player, controls, layers, media) {
+			
+			// Android and iOS don't support volume controls
+			if (mejs.MediaFeatures.hasTouch && this.options.hideVolumeOnTouchDevices)
+				return;
+			
 			var t = this,
 				mute = 
 				$('<div class="mejs-button mejs-volume-button mejs-mute">'+
@@ -2430,7 +2963,7 @@ if (typeof jQuery != 'undefined') {
 						positionVolumeHandle(0);
 						mute.removeClass('mejs-mute').addClass('mejs-unmute');
 					} else {
-						positionVolumeHandle(e.target.volume);
+						positionVolumeHandle(media.volume);
 						mute.removeClass('mejs-unmute').addClass('mejs-mute');
 					}
 				}
@@ -2476,13 +3009,11 @@ if (typeof jQuery != 'undefined') {
 				
 			// native events
 			if (mejs.MediaFeatures.hasTrueNativeFullScreen) {
-				console.log('added change event: ' + mejs.MediaFeatures.fullScreenEventName);
 				
 				player.container.bind(mejs.MediaFeatures.fullScreenEventName, function(e) {
 				//player.container.bind('webkitfullscreenchange', function(e) {
 				
-					console.log('fullscreenchange event: ' + mejs.MediaFeatures.isFullScreen());
-				
+					
 					if (mejs.MediaFeatures.isFullScreen()) {
 						player.isNativeFullScreen = true;
 						// reset the controls once we are fully in full screen
@@ -2531,7 +3062,9 @@ if (typeof jQuery != 'undefined') {
 			
 			
 			// firefox+flash can't adjust plugin sizes without resetting :(
-			if (t.media.pluginType !== 'native' && (mejs.MediaFeatures.isGecko || t.options.forcePluginFullScreen)) {
+			if (/* t.container.find('object,embed,iframe').length > 0 */
+			    t.media.pluginType !== 'native'
+			    && (mejs.MediaFeatures.isGecko || t.options.forcePluginFullScreen)) {
 				t.media.setFullscreen(true);
 				//player.isFullScreen = true;
 				return;
@@ -2545,9 +3078,6 @@ if (typeof jQuery != 'undefined') {
 			// store sizing
 			normalHeight = t.container.height();
 			normalWidth = t.container.width();
-			
-			console.log('true: ' + mejs.MediaFeatures.hasTrueNativeFullScreen + ', semi: ' + mejs.MediaFeatures.hasSemiNativeFullScreen)
-			
 			
 			// attempt to do true fullscreen (Safari 5.1 and Firefox Nightly only for now)
 			if (mejs.MediaFeatures.hasTrueNativeFullScreen) {
@@ -2607,10 +3137,13 @@ if (typeof jQuery != 'undefined') {
 					.width('100%')
 					.height('100%');
 			} else {
-				t.container.find('object embed')
+				t.container.find('object, embed, iframe')
 					.width('100%')
 					.height('100%');
-				t.media.setVideoSize($(window).width(),$(window).height());
+					
+				if (!mejs.MediaFeatures.hasTrueNativeFullScreen) {
+					t.media.setVideoSize($(window).width(),$(window).height());
+				}
 			}
 			
 			t.layers.children('div')
@@ -3270,7 +3803,8 @@ if (typeof jQuery != 'undefined') {
 				type: 'GET',
 				dataType: 'jsonp',
 				success: function(d) {
-					callback(d.responseData.translatedText);
+					
+					callback((d.responseData !== null) ? d.responseData.translatedText : 'No translation');
 				},
 				error: function(e) {
 					callback(null);

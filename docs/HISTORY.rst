@@ -1,8 +1,10 @@
 History
 =======
 
-0.1.3 - Unreleased
+0.1.3 - 2011-12-08
 ==================
+
+ * Upgraded mediaelement library from 2.3.2 to 2.4.2
 
 0.1.2 - 2011-11-26
 ==================
